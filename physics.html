@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the physics works · Rocket Launch Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--line:#232c3f;--text:#e6ebf5;--muted:#8b96ad;--accent:#ff7a1a;--alt:#4cc9f0;--good:#52d273}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Space Grotesk",system-ui,sans-serif;line-height:1.65}
+  main{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+  a{color:var(--alt)}
+  .back{font-size:14px}
+  h1{font-size:28px;margin:12px 0 4px} h1 span{color:var(--accent)}
+  .lede{color:var(--muted);margin-top:0}
+  h2{font-size:20px;margin:36px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+  h2 .n{color:var(--accent);font-family:"JetBrains Mono",monospace;font-size:15px;margin-right:6px}
+  .eq{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:12px 14px;margin:12px 0;
+      font-family:"JetBrains Mono",monospace;font-size:15px;overflow-x:auto;white-space:nowrap}
+  code{font-family:"JetBrains Mono",monospace;font-size:.92em;color:#ffd6b0}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500}
+  td.num{font-family:"JetBrains Mono",monospace;text-align:right}
+  .note{background:#13202b;border:1px solid #1f3a4d;border-radius:8px;padding:10px 14px;font-size:14px;color:#cfe6f5}
+  ul{padding-left:20px} li{margin:4px 0}
+  .toc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:14px}
+  .toc ol{margin:6px 0;padding-left:20px}
+  footer{margin-top:40px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← Back to the simulator</a>
+  <h1>How the <span>physics</span> works</h1>
+  <p class="lede">The equations behind the simulator, the assumptions they rest on, and a worked example using the default rocket.</p>
+
+  <div class="toc"><b>Contents</b>
+    <ol>
+      <li><a href="#forces">Forces on the rocket</a></li>
+      <li><a href="#mass">Thrust, Isp and changing mass</a></li>
+      <li><a href="#drag">Drag and the atmosphere</a></li>
+      <li><a href="#gravity">Gravity that weakens with altitude</a></li>
+      <li><a href="#staging">Staging and the rocket equation</a></li>
+      <li><a href="#losses">Where the Δv goes: gravity and drag losses</a></li>
+      <li><a href="#integration">Numerical integration</a></li>
+      <li><a href="#limits">Assumptions and limits</a></li>
+    </ol>
+  </div>
+
+  <h2 id="forces"><span class="n">01</span>Forces on the rocket</h2>
+  <p>The rocket flies straight up, so everything is one-dimensional. Up is positive. At each instant three forces act:</p>
+  <div class="eq">F = T − D − m·g(h) &nbsp;&nbsp;⇒&nbsp;&nbsp; a = F / m</div>
+  <p><b>T</b> is engine thrust, <b>D</b> is aerodynamic drag (always opposing motion), and <b>m·g(h)</b> is weight. While the rocket sits on the pad, the ground pushes back, so it only lifts off once <code>T &gt; m·g</code>. That ratio is the <b>thrust-to-weight ratio</b>:</p>
+  <div class="eq">TWR = T / (m₀·g₀)</div>
+  <p>A TWR below 1 means the rocket burns fuel while sitting on the pad. Real launch vehicles usually lift off with a TWR of about 1.2–1.5. Sounding rockets often go higher.</p>
+
+  <h2 id="mass"><span class="n">02</span>Thrust, Isp and changing mass</h2>
+  <p>The sim holds thrust constant while a stage has fuel. <b>Specific impulse</b> (Isp, in seconds) measures how efficiently the engine turns propellant into thrust. It sets the mass flow rate:</p>
+  <div class="eq">ṁ = T / (Isp · g₀)</div>
+  <p>where <code>g₀ = 9.80665 m/s²</code>. The product <code>Isp·g₀</code> is the effective exhaust velocity <code>vₑ</code>. As propellant burns, the mass drops while thrust stays the same, so acceleration rises through the burn. That's why the velocity curve bends upward until burnout.</p>
+  <div class="eq">burn time = m_fuel / ṁ</div>
+  <p>Typical Isp values: solid motors about 230–270 s, kerosene/LOX 280–340 s, hydrogen/LOX about 450 s in vacuum.</p>
+
+  <h2 id="drag"><span class="n">03</span>Drag and the atmosphere</h2>
+  <div class="eq">D = ½ · ρ(h) · v² · C<sub>d</sub> · A &nbsp;&nbsp;&nbsp; A = π·(d/2)²</div>
+  <p>Air density falls off roughly exponentially with altitude. The sim uses an isothermal model with a scale height of 8.5 km:</p>
+  <div class="eq">ρ(h) = 1.225 · e^(−h / 8500) &nbsp;kg/m³</div>
+  <p>By 30 km the density is about 3% of its sea-level value, and by 60 km it's about 0.09%. So drag matters a lot early in the flight and hardly at all once you're high up.</p>
+  <p>The term <code>q = ½ρv²</code> is the <b>dynamic pressure</b>. It rises as the rocket speeds up and then falls as the air thins. Its peak, <b>Max Q</b>, is the moment of highest aerodynamic load on the structure, which is why real vehicles often throttle down around it. The sim only records Max Q on the way up, the way it's quoted for real launches.</p>
+
+  <h2 id="gravity"><span class="n">04</span>Gravity that weakens with altitude</h2>
+  <div class="eq">g(h) = g₀ · ( R / (R + h) )² &nbsp;&nbsp;&nbsp; R = 6 371 km</div>
+  <p>At 400 km, gravity is still about 89% of its surface value. Astronauts on the ISS float because they're in free fall, not because there's no gravity. The sim also checks <b>escape velocity</b> once all stages are spent:</p>
+  <div class="eq">v_esc = √( 2·g₀·R² / (R + h) )</div>
+  <p>If the rocket is moving upward faster than this with no thrust left, it never comes back, and the sim ends the flight as <i>ESCAPED EARTH</i>.</p>
+
+  <h2 id="staging"><span class="n">05</span>Staging and the rocket equation</h2>
+  <p>The ideal velocity change a stage can give, with no gravity and no drag, comes from Tsiolkovsky's rocket equation:</p>
+  <div class="eq">Δv = Isp · g₀ · ln( m₀ / m_f )</div>
+  <p>Here <code>m₀</code> is the mass at ignition and <code>m_f</code> is the mass at burnout. The important point: <b>m₀ includes everything above the stage</b>, meaning the upper stages and the payload. The sim works this out for each stage and adds them up to give the total ideal Δv shown under the sliders.</p>
+  <p>The logarithm is why staging works. Once a stage burns out, its empty tanks and engine are dead weight. Dropping them means the next stage doesn't have to accelerate that mass any further. When a stage burns out, the sim drops its dry mass, coasts for 1.5 s, and ignites the next stage.</p>
+
+  <p><b>Worked example: the default two-stage rocket</b></p>
+  <table>
+    <tr><th></th><th>Stage 1</th><th>Stage 2</th></tr>
+    <tr><td>Thrust / Isp</td><td class="num">70 kN / 230 s</td><td class="num">12 kN / 250 s</td></tr>
+    <tr><td>Dry + fuel</td><td class="num">1000 + 2400 kg</td><td class="num">250 + 450 kg</td></tr>
+    <tr><td>m₀ (incl. everything above)</td><td class="num">4200 kg</td><td class="num">800 kg</td></tr>
+    <tr><td>m_f</td><td class="num">1800 kg</td><td class="num">350 kg</td></tr>
+    <tr><td>TWR at ignition</td><td class="num">1.70</td><td class="num">1.53</td></tr>
+    <tr><td>Burn time</td><td class="num">77 s</td><td class="num">92 s</td></tr>
+    <tr><td>Ideal Δv</td><td class="num">1.91 km/s</td><td class="num">2.03 km/s</td></tr>
+  </table>
+  <p>That's 3.94 km/s of ideal Δv in total, plus a 100 kg payload. In the sim this rocket reaches an apogee of about <b>392 km</b>.</p>
+  <div class="note"><b>Why bother staging?</b> Build a single-stage rocket with the <i>same total mass and the same total propellant</i> (1250 kg dry, 2850 kg fuel, 70 kN). Its ideal Δv drops to 2.56 km/s and it only reaches about <b>150 km</b>. Same propellant, less than half the altitude, because it drags its empty tanks all the way up.</div>
+
+  <h2 id="losses"><span class="n">06</span>Where the Δv goes: gravity and drag losses</h2>
+  <p>The default rocket has 3.94 km/s of ideal Δv, but it's only moving at about <b>2.06 km/s</b> when stage 2 burns out. The missing 1.87 km/s is lost to two things:</p>
+  <ul>
+    <li><b>Gravity loss</b>: for every second the engine fires straight up, gravity takes back about <code>g·Δt</code>. With roughly 170 s of burning, that's about 1.6 km/s. This is why higher TWR (a shorter, harder burn) wastes less, and why real rockets pitch over into a gravity turn.</li>
+    <li><b>Drag loss</b>: set C<sub>d</sub> to near zero and the burnout speed rises to about 2.29 km/s and the apogee to about 477 km. So drag costs this rocket roughly 230 m/s.</li>
+  </ul>
+
+  <h2 id="integration"><span class="n">07</span>Numerical integration</h2>
+  <p>The equations of motion are stepped forward with a fixed time step <code>dt = 0.01 s</code> using semi-implicit (symplectic) Euler:</p>
+  <div class="eq">v ← v + a·dt &nbsp;&nbsp;→&nbsp;&nbsp; h ← h + v·dt</div>
+  <p>Updating velocity first and then using the <i>new</i> velocity for position keeps the energy behaviour much better than plain Euler, at no extra cost. A convergence check on the default rocket:</p>
+  <table>
+    <tr><th>dt</th><th>Apogee</th></tr>
+    <tr><td class="num" style="text-align:left">0.1 s</td><td class="num">392.70 km</td></tr>
+    <tr><td class="num" style="text-align:left">0.01 s</td><td class="num">391.90 km</td></tr>
+    <tr><td class="num" style="text-align:left">0.001 s</td><td class="num">391.84 km</td></tr>
+  </table>
+  <p>The result changes by about 0.02% going from 0.01 s to 0.001 s, so the default step is accurate enough. Time warp just runs more steps per animation frame. It never makes the step bigger.</p>
+
+  <h2 id="limits"><span class="n">08</span>Assumptions and limits</h2>
+  <ul>
+    <li><b>Vertical flight only.</b> There's no pitch-over or gravity turn, so the rocket can't reach orbit. Orbit needs about 7.8 km/s of <i>horizontal</i> velocity.</li>
+    <li><b>Constant thrust and Isp.</b> Real engines gain thrust as outside pressure drops, and Isp differs between sea level and vacuum.</li>
+    <li><b>Constant C<sub>d</sub>.</b> Real drag coefficients change a lot with Mach number and peak near Mach 1.</li>
+    <li><b>Simple atmosphere.</b> An exponential model, not the full US Standard Atmosphere 1976.</li>
+    <li><b>Same diameter for every stage</b> when working out drag.</li>
+    <li><b>No Earth rotation</b>, no wind, and no parachute: descent speed is set only by drag (about 80 m/s at impact for the default rocket).</li>
+  </ul>
+  <p>Each of these is a possible upgrade. See the roadmap in the <a href="https://github.com/gitucha/rocket-sim#roadmap">README</a>.</p>
+
+  <footer>Rocket Launch Simulator · <a href="https://github.com/gitucha/rocket-sim">source on GitHub</a></footer>
+</main>
+</body>
+</html>
