@@ -2,8 +2,10 @@
 
 An interactive, browser-based simulator for a multi-stage rocket flying straight up. Design up to three stages, launch, and watch thrust, drag, gravity and changing mass play out live, with altitude and velocity plotted as it flies.
 
-** Live demo:** https://gitucha.github.io/rocket-sim/
-** Physics write-up:** [physics.html](https://gitucha.github.io/rocket-sim/physics.html)
+# Live demo 
+https://gitucha.github.io/rocket-sim/
+# Physics write-up: 
+[physics.html](https://gitucha.github.io/rocket-sim/physics.html)
 
 ---
 
